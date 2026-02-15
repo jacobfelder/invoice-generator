@@ -44,10 +44,25 @@ header button {
 }
 
 input, textarea {
-  padding: 8px;
+  padding: 6px;
   width: 100%;
   box-sizing: border-box;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+}
+
+.small-input {
+  width: 80px;
+  text-align: right;
+}
+
+.top-grid {
+  display: flex;
+  gap: 40px;
+  margin-bottom: 25px;
+}
+
+.top-left, .top-right {
+  flex: 1;
 }
 
 table {
@@ -59,7 +74,6 @@ table {
 th, td {
   border: 1px solid #ddd;
   padding: 8px;
-  text-align: left;
 }
 
 th {
@@ -74,6 +88,10 @@ th {
   margin-top: 20px;
   max-width: 300px;
   margin-left: auto;
+}
+
+.totals div {
+  margin-bottom: 5px;
 }
 
 .hidden {
@@ -105,7 +123,6 @@ th {
   .container {
     margin: 0;
     padding: 0;
-    box-shadow: none;
   }
   .editor {
     display: none !important;
@@ -128,39 +145,53 @@ th {
 
   <!-- EDITOR -->
   <div id="editor" class="editor">
-    <h2>Invoice Details</h2>
 
-    <label>Invoice #</label>
-    <input id="invoiceNumber" />
+    <div class="top-grid">
+      <div class="top-left">
+        <label>Invoice #</label>
+        <input id="invoiceNumber" />
 
-    <label>Invoice Date</label>
-    <input type="date" id="invoiceDate" />
+        <label>Invoice Date</label>
+        <input type="date" id="invoiceDate" />
 
-    <label>Due Date</label>
-    <input type="date" id="dueDate" />
+        <label>Due Date</label>
+        <input type="date" id="dueDate" />
+      </div>
 
-    <h3>Bill To</h3>
-    <input id="customerName" placeholder="Customer Name" />
-    <textarea id="customerAddress" placeholder="Customer Address"></textarea>
-    <input id="customerEmail" placeholder="Customer Email" />
+      <div class="top-right">
+        <label>Bill To</label>
+        <input id="customerName" placeholder="Customer Name" />
+        <textarea id="customerAddress" placeholder="Customer Address"></textarea>
+        <input id="customerEmail" placeholder="Customer Email" />
+      </div>
+    </div>
 
     <h3>Line Items</h3>
+
     <table id="itemsTable">
       <thead>
         <tr>
           <th>Description</th>
-          <th>Qty</th>
-          <th>Price</th>
-          <th>Total</th>
+          <th class="right">Qty</th>
+          <th class="right">Price</th>
+          <th class="right">Total</th>
           <th></th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
+
     <button onclick="addItem()">Add Item</button>
 
-    <h3>Tax %</h3>
-    <input type="number" id="taxRate" value="0" />
+    <div class="totals">
+      <div>Subtotal: $<span id="eSubtotal">0.00</span></div>
+      <div>
+        Tax:
+        <input type="number" id="taxRate" class="small-input" value="0" step="0.01"> %
+        = $<span id="eTax">0.00</span>
+      </div>
+      <div><strong>Total: $<span id="eTotal">0.00</span></strong></div>
+    </div>
 
   </div>
 
@@ -191,9 +222,9 @@ th {
       <thead>
         <tr>
           <th>Description</th>
-          <th>Qty</th>
-          <th>Price</th>
-          <th>Total</th>
+          <th class="right">Qty</th>
+          <th class="right">Price</th>
+          <th class="right">Total</th>
         </tr>
       </thead>
       <tbody id="pItems"></tbody>
@@ -217,6 +248,10 @@ th {
 
 <script>
 
+const today = new Date().toISOString().split("T")[0];
+document.getElementById("invoiceDate").value = today;
+document.getElementById("dueDate").value = today;
+
 let invoiceCounter = localStorage.getItem("invoiceCounter") || 1;
 document.getElementById("invoiceNumber").value = invoiceCounter;
 
@@ -226,8 +261,8 @@ function addItem(desc="", qty=1, price=0) {
 
   row.innerHTML = `
     <td><input value="${desc}"></td>
-    <td><input type="number" value="${qty}" min="1"></td>
-    <td><input type="number" value="${price}" step="0.01"></td>
+    <td><input type="number" value="${qty}" min="1" class="right"></td>
+    <td><input type="number" value="${price}" step="0.01" class="right"></td>
     <td class="right">$0.00</td>
     <td><button onclick="this.closest('tr').remove(); calculate();">X</button></td>
   `;
@@ -252,22 +287,29 @@ function calculate() {
     subtotal += total;
   });
 
-  return subtotal;
-}
-
-function showPreview() {
-  const subtotal = calculate();
   const taxRate = parseFloat(document.getElementById("taxRate").value) || 0;
   const tax = subtotal * (taxRate / 100);
   const total = subtotal + tax;
 
-  document.getElementById("pInvoiceNumber").innerText = document.getElementById("invoiceNumber").value;
-  document.getElementById("pInvoiceDate").innerText = document.getElementById("invoiceDate").value;
-  document.getElementById("pDueDate").innerText = document.getElementById("dueDate").value;
+  document.getElementById("eSubtotal").innerText = subtotal.toFixed(2);
+  document.getElementById("eTax").innerText = tax.toFixed(2);
+  document.getElementById("eTotal").innerText = total.toFixed(2);
 
-  document.getElementById("pCustomerName").innerText = document.getElementById("customerName").value;
-  document.getElementById("pCustomerAddress").innerText = document.getElementById("customerAddress").value;
-  document.getElementById("pCustomerEmail").innerText = document.getElementById("customerEmail").value;
+  return { subtotal, tax, total };
+}
+
+document.getElementById("taxRate").addEventListener("input", calculate);
+
+function showPreview() {
+  const { subtotal, tax, total } = calculate();
+
+  document.getElementById("pInvoiceNumber").innerText = invoiceNumber.value;
+  document.getElementById("pInvoiceDate").innerText = invoiceDate.value;
+  document.getElementById("pDueDate").innerText = dueDate.value;
+
+  document.getElementById("pCustomerName").innerText = customerName.value;
+  document.getElementById("pCustomerAddress").innerText = customerAddress.value;
+  document.getElementById("pCustomerEmail").innerText = customerEmail.value;
 
   const pItems = document.getElementById("pItems");
   pItems.innerHTML = "";
@@ -275,15 +317,15 @@ function showPreview() {
   document.querySelectorAll("#itemsTable tbody tr").forEach(row => {
     const desc = row.children[0].firstChild.value;
     const qty = row.children[1].firstChild.value;
-    const price = row.children[2].firstChild.value;
-    const total = (qty * price).toFixed(2);
+    const price = parseFloat(row.children[2].firstChild.value).toFixed(2);
+    const lineTotal = (qty * price).toFixed(2);
 
     const newRow = document.createElement("tr");
     newRow.innerHTML = `
       <td>${desc}</td>
-      <td>${qty}</td>
-      <td>$${parseFloat(price).toFixed(2)}</td>
-      <td>$${total}</td>
+      <td class="right">${qty}</td>
+      <td class="right">$${price}</td>
+      <td class="right">$${lineTotal}</td>
     `;
     pItems.appendChild(newRow);
   });
