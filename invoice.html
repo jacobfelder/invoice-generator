@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Coldbruh Invoice Generator</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #f5f5f5;
+}
+
+header {
+  background: #111;
+  color: white;
+  padding: 15px 25px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+header h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+header button {
+  margin-left: 10px;
+  padding: 8px 14px;
+  border: none;
+  cursor: pointer;
+  background: #fff;
+  color: #111;
+  font-weight: 600;
+}
+
+.container {
+  max-width: 1000px;
+  margin: 30px auto;
+  background: white;
+  padding: 30px;
+}
+
+input, textarea {
+  padding: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+th {
+  background: #f0f0f0;
+}
+
+.right {
+  text-align: right;
+}
+
+.totals {
+  margin-top: 20px;
+  max-width: 300px;
+  margin-left: auto;
+}
+
+.hidden {
+  display: none;
+}
+
+.invoice-preview h2 {
+  margin-top: 0;
+}
+
+.invoice-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 30px;
+}
+
+.logo {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+@media print {
+  header {
+    display: none;
+  }
+  body {
+    background: white;
+  }
+  .container {
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+  .editor {
+    display: none !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Coldbruh Invoice Generator</h1>
+  <div>
+    <button onclick="showEditor()">Edit</button>
+    <button onclick="showPreview()">Preview</button>
+    <button onclick="window.print()">Print</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- EDITOR -->
+  <div id="editor" class="editor">
+    <h2>Invoice Details</h2>
+
+    <label>Invoice #</label>
+    <input id="invoiceNumber" />
+
+    <label>Invoice Date</label>
+    <input type="date" id="invoiceDate" />
+
+    <label>Due Date</label>
+    <input type="date" id="dueDate" />
+
+    <h3>Bill To</h3>
+    <input id="customerName" placeholder="Customer Name" />
+    <textarea id="customerAddress" placeholder="Customer Address"></textarea>
+    <input id="customerEmail" placeholder="Customer Email" />
+
+    <h3>Line Items</h3>
+    <table id="itemsTable">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Qty</th>
+          <th>Price</th>
+          <th>Total</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <button onclick="addItem()">Add Item</button>
+
+    <h3>Tax %</h3>
+    <input type="number" id="taxRate" value="0" />
+
+  </div>
+
+  <!-- PREVIEW -->
+  <div id="preview" class="invoice-preview hidden">
+
+    <div class="invoice-header">
+      <div>
+        <div class="logo">Coldbruh</div>
+        <div>123 Brew Street</div>
+        <div>Brooklyn, NY</div>
+        <div>coldbruh@email.com</div>
+      </div>
+      <div>
+        <h2>Invoice</h2>
+        <div><strong>#:</strong> <span id="pInvoiceNumber"></span></div>
+        <div><strong>Date:</strong> <span id="pInvoiceDate"></span></div>
+        <div><strong>Due:</strong> <span id="pDueDate"></span></div>
+      </div>
+    </div>
+
+    <h3>Bill To</h3>
+    <div id="pCustomerName"></div>
+    <div id="pCustomerAddress"></div>
+    <div id="pCustomerEmail"></div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Qty</th>
+          <th>Price</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody id="pItems"></tbody>
+    </table>
+
+    <div class="totals">
+      <div>Subtotal: $<span id="pSubtotal"></span></div>
+      <div>Tax: $<span id="pTax"></span></div>
+      <div><strong>Total: $<span id="pTotal"></span></strong></div>
+    </div>
+
+    <div style="margin-top:40px;">
+      <strong>Payment Terms:</strong><br>
+      Payment due within 14 days.<br>
+      Zelle: coldbruh@email.com
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+
+let invoiceCounter = localStorage.getItem("invoiceCounter") || 1;
+document.getElementById("invoiceNumber").value = invoiceCounter;
+
+function addItem(desc="", qty=1, price=0) {
+  const tbody = document.querySelector("#itemsTable tbody");
+  const row = document.createElement("tr");
+
+  row.innerHTML = `
+    <td><input value="${desc}"></td>
+    <td><input type="number" value="${qty}" min="1"></td>
+    <td><input type="number" value="${price}" step="0.01"></td>
+    <td class="right">$0.00</td>
+    <td><button onclick="this.closest('tr').remove(); calculate();">X</button></td>
+  `;
+
+  tbody.appendChild(row);
+
+  row.querySelectorAll("input").forEach(input =>
+    input.addEventListener("input", calculate)
+  );
+
+  calculate();
+}
+
+function calculate() {
+  let subtotal = 0;
+
+  document.querySelectorAll("#itemsTable tbody tr").forEach(row => {
+    const qty = parseFloat(row.children[1].firstChild.value) || 0;
+    const price = parseFloat(row.children[2].firstChild.value) || 0;
+    const total = qty * price;
+    row.children[3].innerText = "$" + total.toFixed(2);
+    subtotal += total;
+  });
+
+  return subtotal;
+}
+
+function showPreview() {
+  const subtotal = calculate();
+  const taxRate = parseFloat(document.getElementById("taxRate").value) || 0;
+  const tax = subtotal * (taxRate / 100);
+  const total = subtotal + tax;
+
+  document.getElementById("pInvoiceNumber").innerText = document.getElementById("invoiceNumber").value;
+  document.getElementById("pInvoiceDate").innerText = document.getElementById("invoiceDate").value;
+  document.getElementById("pDueDate").innerText = document.getElementById("dueDate").value;
+
+  document.getElementById("pCustomerName").innerText = document.getElementById("customerName").value;
+  document.getElementById("pCustomerAddress").innerText = document.getElementById("customerAddress").value;
+  document.getElementById("pCustomerEmail").innerText = document.getElementById("customerEmail").value;
+
+  const pItems = document.getElementById("pItems");
+  pItems.innerHTML = "";
+
+  document.querySelectorAll("#itemsTable tbody tr").forEach(row => {
+    const desc = row.children[0].firstChild.value;
+    const qty = row.children[1].firstChild.value;
+    const price = row.children[2].firstChild.value;
+    const total = (qty * price).toFixed(2);
+
+    const newRow = document.createElement("tr");
+    newRow.innerHTML = `
+      <td>${desc}</td>
+      <td>${qty}</td>
+      <td>$${parseFloat(price).toFixed(2)}</td>
+      <td>$${total}</td>
+    `;
+    pItems.appendChild(newRow);
+  });
+
+  document.getElementById("pSubtotal").innerText = subtotal.toFixed(2);
+  document.getElementById("pTax").innerText = tax.toFixed(2);
+  document.getElementById("pTotal").innerText = total.toFixed(2);
+
+  document.getElementById("editor").classList.add("hidden");
+  document.getElementById("preview").classList.remove("hidden");
+
+  localStorage.setItem("invoiceCounter", parseInt(invoiceCounter) + 1);
+}
+
+function showEditor() {
+  document.getElementById("preview").classList.add("hidden");
+  document.getElementById("editor").classList.remove("hidden");
+}
+
+addItem();
+
+</script>
+
+</body>
+</html>
